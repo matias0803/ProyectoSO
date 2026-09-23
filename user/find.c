@@ -1,40 +1,70 @@
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "user/user.h"
+#include "kernel/fs.h"
 
-
-
-char* buscarArchivo(char* inicio, char* nombre){
+void buscarArchivo(char* inicio, char* nombre){
     int fd;
     struct dirent de;
-    char *p;
+    struct stat st;
     char buf[512];
+    char *p;
 
-
-    fd = open(inicio, O_RDONLY);
-
+   
+    fd = open(inicio, 0); 
     if (fd < 0) {
-        return 0;
+        return;
     }
 
-    while(read(fd, &de, sizeof(de)) == sizeof(de)){
+    
+    if (fstat(fd, &st) < 0) {
+        close(fd);
+        return;
+    }
 
-        if (strcmp(nombre, de.name) == 0) {
+    
+    if (st.type == T_DIR) {
+        
+        strcpy(buf, inicio);
+        p = buf + strlen(buf);
+        *p++ = '/'; 
 
-            strcpy(buf, inicio);
+        
+        while(read(fd, &de, sizeof(de)) == sizeof(de)){
+            
+            
+            if(de.inum == 0) continue;
 
-            p = buf + strlen(buf);
-            *p++ = '/';
-
+            
             memmove(p, de.name, DIRSIZ);
             p[DIRSIZ] = 0;
 
-            close(fd);
-            return buf;
-        }
-        
-    }
-    close(fd);
-    return 0;
+            
+            if (strcmp(nombre, de.name) == 0) {
+                printf("%s\n", buf);
+            }
 
+            
+            if (stat(buf, &st) < 0) {
+                continue;
+            }
+
+            
+            if (st.type == T_DIR && strcmp(de.name, ".") != 0 && strcmp(de.name, "..") != 0) {
+                
+                buscarArchivo(buf, nombre);
+            }
+        }
+    }
+
+    close(fd);
+}
+
+int main(int argc, char *argv[]) {
+  if(argc != 3){
+    fprintf(2, "Uso: find <ruta_inicial> <nombre_archivo>\n");
+    exit(1);
+  }
+  buscarArchivo(argv[1], argv[2]);
+  exit(0);
 }

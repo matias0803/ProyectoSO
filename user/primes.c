@@ -2,67 +2,85 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 
-// función usada por los procesos hijos para buscar primos
-void buscarPrimosHijo(int* pIn) {
-    // pIn: pipe por la que el padre envía números al hijo
-    close(pIn[1]); // no vamos a escribir a pIn
+void primes(int p_in[2]) {
+    int prime;
+    int curr_in = p_in[0];
 
-    // leer número inicial desde pipe de entrada
-    // cancelar función si no pueden llegar más números
-    int number;
-    if (read(pIn[0], &number, sizeof(int)) == 0) return;
-    // TODO: imprimir number en terminal
-
-    int pOut[2]; // nueva pipe para mandar números al nuevo hijo
-    // hacer fork para mandar números a otro hijo
-    int pid = fork();
-    if (pid > 0) {
-        // proceso actual, ahora padre
-        close(pOut[0]); // cerrar escritura del nuevo pipe para este proceso
-        int currNumber; // para cada número que llegue desde pIn
-        // loop: por cada número que llega desde pIn:
-        while (read(pIn[0], &currNumber, sizeof(int)) != 0) {
-            if (currNumber % number == 0) {
-                // el número actual es múltiplo del número inicial
-                // enviar a proceso hijo
-                write(pOut[1], &currNumber, sizeof(int));
-            }
-            // si no es múltiplo, se ignora el número
+    // Bucle iterativo que reemplaza la llamada recursiva directa
+    while (1) {
+        // Leer el primer número de la tubería entrante
+        if (read(curr_in, &prime, sizeof(int)) <= 0) {
+            close(curr_in);
+            exit(0);
         }
-        // terminado el loop
-        close(pIn[0]); // no hay más números que leer
-        close(pOut[1]); // no hay más números que enviar
-        wait((int*) 0); // esperar a que el hijo muera
-    } else if (pid == 0) {
-        // nuevo proceso hijo
-        // ejecutar función recursivamente
-        buscarPrimosHijo(pOut);
-        close(pIn[0]);
-        close(pOut[0]);
-        close(pOut[1]);
-        exit(0);
+
+        // El primer número leído siempre es primo
+        printf("prime %d\n", prime);
+
+        int p_out[2];
+        pipe(p_out);
+
+        int pid = fork();
+        if (pid < 0) {
+            fprintf(2, "Error al crear proceso con fork\n");
+            close(curr_in);
+            close(p_out[0]);
+            close(p_out[1]);
+            exit(1);
+        }
+
+        if (pid == 0) {
+            // Proceso hijo: hereda el nuevo pipe y continúa la iteración
+            close(curr_in);   // Ya no necesita la tubería previa
+            close(p_out[1]);  // Solo leerá de la nueva tubería
+            curr_in = p_out[0];
+            // Repite el ciclo como un nuevo filtro
+        } else {
+            // Proceso padre actual: filtra los números hacia el nuevo hijo
+            close(p_out[0]);
+
+            int num;
+            while (read(curr_in, &num, sizeof(int)) > 0) {
+                // Solo reenviar números no divisibles
+                if (num % prime != 0) {
+                    write(p_out[1], &num, sizeof(int));
+                }
+            }
+
+            // Fin del flujo de datos
+            close(curr_in);
+            close(p_out[1]);
+            wait(0);
+            exit(0);
+        }
     }
 }
 
-void buscarPrimos() {
-    int number; // número actual
-    int p[2]; // pipe
-
-    pipe(p); // crear pipe en p
+int main(int argc, char *argv[]) {
+    int p[2];
+    pipe(p);
 
     int pid = fork();
-    if (pid > 0) {
-        // proceso padre original
-        close(p[0]); // cerrar lectura de p, no vamos a leer nada
-        // loop: por cada número de 2 a 35
-        for (number = 2; number = 35; number++) {
-            write(p[1], &number, sizeof(int)); // enviar por pipe p
-        }
-    } else if (pid == 0) {
-        // proceso hijo inicial
-        close(p[1]); // cerrar escritura de p, no vamos a escribir nada
-        
-
-        int p_new[2]; // nueva p
+    if (pid < 0) {
+        fprintf(2, "Error en fork inicial\n");
+        exit(1);
     }
+
+    if (pid == 0) {
+        // Iniciar la criba con el primer hijo
+        close(p[1]);
+        primes(p);
+    } else {
+        // Padre generador: envía números del 2 al 35
+        close(p[0]);
+
+        for (int i = 2; i <= 35; i++) {
+            write(p[1], &i, sizeof(int));
+        }
+
+        close(p[1]); // Avisa el fin de datos al primer filtro
+        wait(0);
+    }
+
+    exit(0);
 }

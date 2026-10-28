@@ -1,0 +1,42 @@
+#include "kernel/types.h"
+#include "user/user.h"
+#include "thread.h"
+
+struct thread threads[MAX_THREADS];
+struct thread *current_thread = 0;
+
+void thread_init(void) {
+  for (int i = 0; i < MAX_THREADS; i++) {
+    threads[i].id = i;
+    threads[i].state = LIBRE;
+  }
+
+  current_thread = &threads[0];
+  current_thread->state = CORRIENDO;
+}
+
+int thread_create(void (*func)(void)) {
+  struct thread *t = 0;
+
+  for (int i = 0; i < MAX_THREADS; i++) {
+    if (threads[i].state == LIBRE) {
+      t = &threads[i];
+      break;
+    }
+  }
+
+  if (t == 0) {
+    return -1;
+  }
+
+  t->state = LISTA_PARA_CORRER;
+
+  uint64 stack_top = (uint64)&t->stack[STACK_SIZE];
+  stack_top = stack_top & ~15LL;
+
+  t->context.sp = stack_top;
+  t->context.ra = (uint64)func;
+
+  return t->id;
+}
+

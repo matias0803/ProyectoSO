@@ -40,7 +40,7 @@ int thread_create(void (*func)(void)) {
   return t->id;
 }
 
-void thread_schedule(int old_thread_id) {
+void thread_schedule(void) {
   struct thread *new_thread = 0;
 
   // buscar una hebra que esté lista para correr
@@ -54,22 +54,8 @@ void thread_schedule(int old_thread_id) {
   // si no se encuentra una hebra, retornar
   if (new_thread == 0) return;
 
-  struct thread *old_thread = 0;
-
-  // buscar la hebra que se quiere reemplazar
-  // se busca por id
-  for (int i = 0; i < MAX_THREADS; i++) {
-    if (threads[i].id == old_thread_id) {
-      old_thread = &threads[i];
-      break;
-    }
-  }
-
-  // si no se encuentra la hebra, retornar
-  if (old_thread == 0) return;
-
-  // cambio de contexto
-  thread_switch(old_thread->context, new_thread->context);
+  // cambio de contexto de hebra actual a nueva hebra
+  thread_switch(current_thread->context, new_thread->context);
 
   // cambiar estado de nueva hebra a CORRIENDO
   new_thread->state = CORRIENDO;

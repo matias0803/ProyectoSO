@@ -40,7 +40,7 @@ extern struct thread *current_thread;
 
 void thread_init(void);
 int thread_create(void (*func)(void));
-void thread_schedule(int old_thread_id);
+void thread_schedule(void);
 void thread_yield(void);
 
 extern void thread_switch(struct context *old_ctx, struct context *new_ctx);

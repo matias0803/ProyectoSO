@@ -41,38 +41,42 @@ int thread_create(void (*func)(void)) {
 }
 
 void thread_schedule(void) {
+  // cambio Guardar puntero a la hebra saliente ANTES de buscar
+  struct thread *old_thread = current_thread;
   struct thread *new_thread = 0;
 
-  // buscar una hebra que esté lista para correr
+  // [CAMBIO 2]: Inicio circular (Round-Robin) desde la siguiente hebra (id + 1)
+  int start = (old_thread != 0) ? (old_thread->id + 1) % MAX_THREADS : 0;
   for (int i = 0; i < MAX_THREADS; i++) {
-    if (threads[i].state == LISTA_PARA_CORRER) {
-      new_thread = &threads[i];
+    int idx = (start + i) % MAX_THREADS; // [CAMBIO 2]: Índice con módulo
+    if (threads[idx].state == LISTA_PARA_CORRER) {
+      new_thread = &threads[idx];
       break;
     }
   }
 
-  // si no se encuentra una hebra, retornar
-  if (new_thread == 0) return;
+  // cambio Salir con exit(0) si no quedan hebras pendientes
+  if (new_thread == 0) {
+    if (old_thread && old_thread->state == CORRIENDO) return;
+    exit(0);
+  }
 
-  // cambio de contexto de hebra actual a nueva hebra
-  thread_switch(current_thread->context, new_thread->context);
-
-  // cambiar estado de nueva hebra a CORRIENDO
+  // cambio Actualizar estado y puntero global ANTES de saltar en ensamblador
   new_thread->state = CORRIENDO;
+  current_thread = new_thread;
+
+  // cambio Usar old_thread para no perder la referencia de la hebra saliente
+  thread_switch(&old_thread->context, &new_thread->context);
 }
 
 void thread_yield(void) {
-  // guardar id de hebra actual para actualizar su estado más tarde
-  int old_thread_id = current_thread->id;
+  // cambio Marcar estado a LISTA_PARA_CORRER ANTES de conmutar
+  if (current_thread != 0 && current_thread->state == CORRIENDO) {
+    current_thread->state = LISTA_PARA_CORRER;
+  }
 
   // llamar a schedule para que active otra hebra
   thread_schedule();
 
-  // buscar hebra anterior y cambiar su estado a lista
-  for (int i = 0; i < MAX_THREADS; i++) {
-    if (threads[i].id == old_thread_id) {
-      threads[i].state = LISTA_PARA_CORRER;
-      break;
-    }
-  }
+  // cambio: Se eliminó el bucle posterior (no se ejecutaba a tiempo por el congelamiento)
 }

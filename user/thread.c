@@ -60,3 +60,19 @@ void thread_schedule(void) {
   // cambiar estado de nueva hebra a CORRIENDO
   new_thread->state = CORRIENDO;
 }
+
+void thread_yield(void) {
+  // guardar id de hebra actual para actualizar su estado más tarde
+  int old_thread_id = current_thread->id;
+
+  // llamar a schedule para que active otra hebra
+  thread_schedule();
+
+  // buscar hebra anterior y cambiar su estado a lista
+  for (int i = 0; i < MAX_THREADS; i++) {
+    if (threads[i].id == old_thread_id) {
+      threads[i].state = LISTA_PARA_CORRER;
+      break;
+    }
+  }
+}
